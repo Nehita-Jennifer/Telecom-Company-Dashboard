@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tree Map Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .filters {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .filter {
+      margin-right: 20px;
+    }
+    /* Styles for the legend */
+    .legend {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      position: absolute;
+      top: 50px; /* Adjust this value as needed */
+      right: 10px; /* Adjust this value as needed */
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .legend-rect {
+      width: 18px;
+      height: 18px;
+      display: inline-block;
+      margin-right: 5px;
+    }
+    #chart {
+      position: relative;
+    }
+    svg {
+      display: block; /* To prevent display:inline default for SVG */
+    }
+  </style>
+</head>
+<body>
+
+<h1 style="text-align: center;">Top Locations by Revenue</h1>
+
+<div class="filters">
+  <div class="filter">
+    <label for="internet-type">Select Internet Type:</label>
+    <select id="internet-type">
+      <option value="All">All</option>
+      <option value="Cable">Cable</option>
+      <option value="Fiber Optic">Fiber Optic</option>
+      <option value="DSL">DSL</option>
+      <option value="Others">Others</option>
+    </select>
+  </div>
+  <div class="filter">
+    <label for="top-filter">Select Top:</label>
+    <select id="top-filter">
+      <option value="5">Top 5</option>
+      <option value="10">Top 10</option>
+    </select>
+  </div>
+</div>
+
+<div id="chart"></div>
+
+<script>
+  // Fetch JSON data asynchronously and build treemap
+  d3.json("Top 5 Cities by Revenue.json").then(function(data) {
+
+    // Remove the header row
+    data.shift();
+
+    // Color scale for internet types
+    const colorScale = d3.scaleOrdinal()
+      .domain(["Cable", "Fiber Optic", "DSL", "Others"])
+      .range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]);
+
+    // Function to update the visualization based on selected internet type and top filter
+    function updateVisualization(selectedType, topFilter) {
+      let filteredData = selectedType === "All" ? data : data.filter(d => d[2] === selectedType);
+
+      // Sort filtered data by revenue in descending order
+      filteredData.sort((a, b) => b[1] - a[1]);
+
+      // Select the top cities based on the top filter
+      const topCount = parseInt(topFilter);
+      filteredData = filteredData.slice(0, topCount);
+
+      // Calculate total revenue for filtered data
+      const totalRevenue = filteredData.map(d => d[1]);
+      const maxRevenue = Math.max(...totalRevenue);
+
+      // Create a hierarchy from the filtered data
+      const root = d3.hierarchy({children: filteredData})
+                     .sum(d => d[1]);
+
+      // Create a treemap layout
+      const treemap = d3.treemap()
+                        .size([800, 600])
+                        .padding(1)
+                        .round(true);
+
+      treemap(root);
+
+      // Remove existing SVG element
+      d3.select("#chart svg").remove();
+
+      // Append SVG element to the chart div
+      const svg = d3.select("#chart")
+                    .append("svg")
+                    .attr("width", 800)
+                    .attr("height", 600)
+                    .style("display", "inline-block");
+
+      // Draw rectangles
+      const cell = svg.selectAll("g")
+                      .data(root.leaves())
+                      .join("g")
+                      .attr("transform", d => `translate(${d.x0},${d.y0})`);
+
+      cell.append("rect")
+          .attr("width", d => d.x1 - d.x0)
+          .attr("height", d => d.y1 - d.y0)
+          .attr("fill", d => colorScale(d.data[2])) // Use colorScale for the fill
+          .append("title")
+          .text(d => `${d.data[0]}\nTotal Revenue: ${d.data[1]}`);
+
+      // Add city labels
+      cell.append("text")
+          .attr("x", 5)
+          .attr("y", 20)
+          .attr("fill", "white")
+          .text(d => d.data[0]);
+
+      // Create and append the legend to the chart container
+      const legendContainer = d3.select("#chart")
+                                .append("div")
+                                .style("position", "absolute")
+                                .style("right", "0px")
+                                .style("top", "0px")
+                                .style("width", "150px") // Adjust width as necessary
+                                .style("height", "100%")
+                                .attr("class", "legend");
+
+      const legend = legendContainer.selectAll(".legend-item")
+                        .data(colorScale.domain())
+                        .enter()
+                        .append("div")
+                        .attr("class", "legend-item");
+
+      legend.append("div")
+            .attr("class", "legend-rect")
+            .style("background-color", d => colorScale(d));
+
+      legend.append("text")
+            .text(d => d);
+    }
+
+    // Initial visualization
+    updateVisualization("All", "5");
+
+    // Event listener for changes in the select elements
+    document.getElementById("internet-type").addEventListener("change", function() {
+      const selectedType = this.value;
+      const topFilter = document.getElementById("top-filter").value;
+      updateVisualization(selectedType, topFilter);
+    });
+
+    document.getElementById("top-filter").addEventListener("change", function() {
+      const selectedType = document.getElementById("internet-type").value;
+      const topFilter = this.value;
+      updateVisualization(selectedType, topFilter);
+    });
+
+  });
+</script>
+
+</body>
+</html>
